@@ -1,0 +1,7 @@
+prefix   = "bestrong"
+location = "westeurope"
+
+# приклад (після того як заллєш образ в ACR)
+container_image = "bestrongacr.azurecr.io/backend:1.0.0"
+
+# sql_admin_password сюди НЕ пиши, передавай через env
