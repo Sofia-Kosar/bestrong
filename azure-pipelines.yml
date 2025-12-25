@@ -45,6 +45,7 @@ stages:
           $env:ARM_TENANT_ID       = $env:tenantId
           $env:ARM_SUBSCRIPTION_ID = (az account show --query id -o tsv)
 
+          Write-Host "TF_VAR_prefix=$env:TF_VAR_prefix"
           Write-Host "TF_VAR_location=$env:TF_VAR_location"
           Write-Host "TF_VAR_container_image=$env:TF_VAR_container_image"
           Write-Host "TF_VAR_sql_admin_password is set: " ($env:TF_VAR_sql_admin_password -ne $null)
@@ -53,6 +54,7 @@ stages:
           terraform -chdir=$(TF_DIR) validate
           terraform -chdir=$(TF_DIR) plan -input=false
       env:
+        TF_VAR_prefix: $(TF_VAR_prefix)
         TF_VAR_location: $(TF_VAR_location)
         TF_VAR_container_image: $(TF_VAR_container_image)
         TF_VAR_sql_admin_password: $(TF_VAR_sql_admin_password)
