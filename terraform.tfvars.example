@@ -5,3 +5,4 @@ location = "westeurope"
 container_image = "bestrongacr.azurecr.io/backend:1.0.0"
 
 # sql_admin_password сюди НЕ пиши, передавай через env
+
