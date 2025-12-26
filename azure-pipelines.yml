@@ -1,6 +1,7 @@
 # azure-pipelines.yml
-# Branch = master (trunk). PR -> init/validate/plan. master -> init/validate/apply
-# Runs on self-hosted agent pool (Windows) and uses AzureCLI@2 with Service Principal (client secret).
+# PR -> terraform init/validate/plan
+# master -> terraform init/validate/apply
+# Self-hosted agent (Windows). AzureCLI@2 + Service Principal (client secret).
 
 trigger:
   branches:
@@ -20,17 +21,16 @@ variables:
   TF_IN_AUTOMATION: 'true'
 
 stages:
-- stage: PR_Check
-  displayName: "PR - terraform init/validate/plan"
-  condition: eq(variables['Build.Reason'], 'PullRequest')
+- stage: Terraform
+  displayName: "Terraform pipeline"
   jobs:
-  - job: plan
-    displayName: "Terraform Plan (PR)"
+  - job: terraform
+    displayName: "Terraform (plan on PR, apply on master)"
     steps:
     - checkout: self
 
     - task: AzureCLI@2
-      displayName: "Terraform plan"
+      displayName: "Terraform init/validate + plan/apply"
       inputs:
         azureSubscription: 'AZURE-SC-BESTRONG'
         scriptType: ps
@@ -39,48 +39,10 @@ stages:
         inlineScript: |
           $ErrorActionPreference = "Stop"
 
-          # ARM auth for Terraform (from service connection)
-          $env:ARM_CLIENT_ID       = $env:servicePrincipalId
-          $env:ARM_CLIENT_SECRET   = $env:servicePrincipalKey
-          $env:ARM_TENANT_ID       = $env:tenantId
-          $env:ARM_SUBSCRIPTION_ID = (az account show --query id -o tsv)
-
-          Write-Host "TF_VAR_prefix=$env:TF_VAR_prefix"
-          Write-Host "TF_VAR_location=$env:TF_VAR_location"
-          Write-Host "TF_VAR_container_image=$env:TF_VAR_container_image"
-          Write-Host "TF_VAR_sql_admin_password is set: " ($env:TF_VAR_sql_admin_password -ne $null)
-
-          terraform -chdir=$(TF_DIR) init -input=false
-          terraform -chdir=$(TF_DIR) validate
-          terraform -chdir=$(TF_DIR) plan -input=false
-      env:
-        TF_VAR_prefix: $(TF_VAR_prefix)
-        TF_VAR_location: $(TF_VAR_location)
-        TF_VAR_container_image: $(TF_VAR_container_image)
-        TF_VAR_sql_admin_password: $(TF_VAR_sql_admin_password)
-
-- stage: Master_Deploy
-  displayName: "master - terraform init/validate/apply"
-  condition: and(
-    succeeded(),
-    ne(variables['Build.Reason'], 'PullRequest'),
-    eq(variables['Build.SourceBranch'], 'refs/heads/master')
-  )
-  jobs:
-  - job: apply
-    displayName: "Terraform Apply (master)"
-    steps:
-    - checkout: self
-
-    - task: AzureCLI@2
-      displayName: "Terraform apply"
-      inputs:
-        azureSubscription: 'AZURE-SC-BESTRONG'
-        scriptType: ps
-        scriptLocation: inlineScript
-        addSpnToEnvironment: true
-        inlineScript: |
-          $ErrorActionPreference = "Stop"
+          # Debug context (важливо, щоб ти бачила що це за запуск)
+          Write-Host "Build.Reason=$(Build.Reason)"
+          Write-Host "Build.SourceBranch=$(Build.SourceBranch)"
+          Write-Host "System.PullRequest.PullRequestId=$(System.PullRequest.PullRequestId)"
 
           # ARM auth for Terraform (from service connection)
           $env:ARM_CLIENT_ID       = $env:servicePrincipalId
@@ -88,6 +50,7 @@ stages:
           $env:ARM_TENANT_ID       = $env:tenantId
           $env:ARM_SUBSCRIPTION_ID = (az account show --query id -o tsv)
 
+          # Show TF vars presence (не світимо секрет)
           Write-Host "TF_VAR_prefix=$env:TF_VAR_prefix"
           Write-Host "TF_VAR_location=$env:TF_VAR_location"
           Write-Host "TF_VAR_container_image=$env:TF_VAR_container_image"
@@ -95,7 +58,25 @@ stages:
 
           terraform -chdir=$(TF_DIR) init -input=false
           terraform -chdir=$(TF_DIR) validate
-          terraform -chdir=$(TF_DIR) apply -input=false -auto-approve
+
+          # PR detection (ADO exposes PR vars as env)
+          $isPr = $env:SYSTEM_PULLREQUEST_PULLREQUESTID
+          $branch = "$(Build.SourceBranch)"
+
+          if ([string]::IsNullOrWhiteSpace($isPr)) {
+            # Not a PR run
+            if ($branch -eq "refs/heads/master") {
+              Write-Host "Not PR + master branch => APPLY"
+              terraform -chdir=$(TF_DIR) apply -input=false -auto-approve
+            } else {
+              Write-Host "Not PR but not master => PLAN (safety)"
+              terraform -chdir=$(TF_DIR) plan -input=false
+            }
+          } else {
+            # PR run
+            Write-Host "PR run => PLAN"
+            terraform -chdir=$(TF_DIR) plan -input=false
+          }
       env:
         TF_VAR_prefix: $(TF_VAR_prefix)
         TF_VAR_location: $(TF_VAR_location)
