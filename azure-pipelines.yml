@@ -13,7 +13,7 @@ pr:
       - master
 
 pool:
-  name: bestrong-selfhosted   # <-- твій Agent Pool
+  name: bestrong-selfhosted   
 
 variables:
   TF_DIR: 'infra'
@@ -32,7 +32,7 @@ stages:
     - task: AzureCLI@2
       displayName: "Terraform plan"
       inputs:
-        azureSubscription: 'AZURE-SC-BESTRONG'  # <-- ТВОЯ Azure RM Service Connection name
+        azureSubscription: 'AZURE-SC-BESTRONG'  
         scriptType: ps
         scriptLocation: inlineScript
         addSpnToEnvironment: true
@@ -71,7 +71,7 @@ stages:
     - task: AzureCLI@2
       displayName: "Terraform apply"
       inputs:
-        azureSubscription: 'AZURE-SC-BESTRONG'  # <-- ТВОЯ Azure RM Service Connection name
+        azureSubscription: 'AZURE-SC-BESTRONG'  
         scriptType: ps
         scriptLocation: inlineScript
         addSpnToEnvironment: true
