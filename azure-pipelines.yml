@@ -13,7 +13,7 @@ pr:
       - master
 
 pool:
-  name: bestrong-selfhosted   
+  name: bestrong-selfhosted
 
 variables:
   TF_DIR: 'infra'
@@ -32,7 +32,7 @@ stages:
     - task: AzureCLI@2
       displayName: "Terraform plan"
       inputs:
-        azureSubscription: 'AZURE-SC-BESTRONG'  
+        azureSubscription: 'AZURE-SC-BESTRONG'
         scriptType: ps
         scriptLocation: inlineScript
         addSpnToEnvironment: true
@@ -61,7 +61,11 @@ stages:
 
 - stage: Master_Deploy
   displayName: "master - terraform init/validate/apply"
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+  condition: and(
+    succeeded(),
+    ne(variables['Build.Reason'], 'PullRequest'),
+    eq(variables['Build.SourceBranch'], 'refs/heads/master')
+  )
   jobs:
   - job: apply
     displayName: "Terraform Apply (master)"
@@ -71,7 +75,7 @@ stages:
     - task: AzureCLI@2
       displayName: "Terraform apply"
       inputs:
-        azureSubscription: 'AZURE-SC-BESTRONG'  
+        azureSubscription: 'AZURE-SC-BESTRONG'
         scriptType: ps
         scriptLocation: inlineScript
         addSpnToEnvironment: true
@@ -84,6 +88,7 @@ stages:
           $env:ARM_TENANT_ID       = $env:tenantId
           $env:ARM_SUBSCRIPTION_ID = (az account show --query id -o tsv)
 
+          Write-Host "TF_VAR_prefix=$env:TF_VAR_prefix"
           Write-Host "TF_VAR_location=$env:TF_VAR_location"
           Write-Host "TF_VAR_container_image=$env:TF_VAR_container_image"
           Write-Host "TF_VAR_sql_admin_password is set: " ($env:TF_VAR_sql_admin_password -ne $null)
@@ -92,6 +97,7 @@ stages:
           terraform -chdir=$(TF_DIR) validate
           terraform -chdir=$(TF_DIR) apply -input=false -auto-approve
       env:
+        TF_VAR_prefix: $(TF_VAR_prefix)
         TF_VAR_location: $(TF_VAR_location)
         TF_VAR_container_image: $(TF_VAR_container_image)
         TF_VAR_sql_admin_password: $(TF_VAR_sql_admin_password)
